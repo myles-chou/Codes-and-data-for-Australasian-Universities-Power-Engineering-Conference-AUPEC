@@ -62,24 +62,14 @@ int:a_wait = 6; % per hour
 int:b_drive = 18; % per hour
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Time settings
-%
-% Timeslot:1, ..., 32,33
-% Index order: [TimeSlot, ChargingStation]
-%
-% time_mins: 0, 15, 30,,, 450, 465, 480
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Time horizon: 0 to 480 minutes (8 hours) in 15-minute intervals
+
 int: TIME_HORIZON = 480;
 int: SLOT_LENGTH  = 60;
 
-% Time-slot indices: 1, ..., 32,33
 set of int: TimeSlot = 1..(TIME_HORIZON div SLOT_LENGTH)+1;
 
-% Actual time represented by each slot, in minutes [0, 15, 30,,, 450, 465, 480]
-% e.g., time_mins[1] = 0, time_mins[33] = 480
+
 array[TimeSlot] of int: time_mins =
     [(t-1) * SLOT_LENGTH | t in TimeSlot];
     
@@ -90,38 +80,22 @@ array[TimeSlot] of int: time_mins =
 % Function:  time_points_no_later_than
 % Array: TimePointsNoLaterThan
 
-%
-% time_points_no_later_than(30)= {0,15,30}
-% TimePointsNoLaterThan[2]= {0, 15}
+
 % time_points_no_later_than_depart: depart to arrive before t
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-     
-% Returns all time-slot indices no later than time slot t
-% e.g., time_points_no_later_than(30)= {0,15,30}
-%       time_points_no_later_than(0)= {0}
+
 function set of int: time_points_no_later_than(int: t) =
     {tau | tau in time_mins where tau <= t};
     
-% Optional: precompute the set for every time slot
-% e.g., TimePointsNoLaterThan[1]=0..0
-%       TimePointsNoLaterThan[33]={0,15,30,45,60,75,90,105,120,135,150,165,180,195,210,225,
-%                                 240,255,270,285,300,315,330,345,360,375,390,405,420,435,450,465,480}
 
-% if you want to find the time set no later than t, you should use
-% TimePointsNoLaterThan[time_slot_of(t)]  
-% e.g., TimePointsNoLaterThan[time_slot_of(30)]--{0,15}
+
+
 array[TimeSlot] of set of int: TimePointsNoLaterThan =
     [time_points_no_later_than(t) | t in time_mins]; 
-% TimeSlot = 1..33
 
 
-% Returns all time-slot indices no later than time slot t
-% Departure time set For EVs from pot to station, should arrive no later than t
-% If you want to arrive at station s before t, you should departs from pot p no later than  
-% time_points_no_later_than_depart(t, p, s)
-% e.g., driving_time_mins[Glenorchy,G1] = 5, then 
-%       time_points_no_later_than_depart(30, Glenorchy,G1) = {0, 15}
-%       time_points_no_later_than_depart(125, Glenorchy,G1) = {0,15,30,45,60,75,90,105,120}
+
+
 function set of int: time_points_no_later_than_depart(int: t, EVPot: pot, ChargingStation: station) =
     {tau | tau in time_mins where tau <= t-driving_time_mins[pot,station]};
 
@@ -143,29 +117,19 @@ array[
               charge in ChargingStation
         ]
     );
-% TimeSlot = 1..33
-% e.g., EligibleDepartureSlots[time_slot_of(30), Glenorchy,G1]= {0, 15}
-%       EligibleDepartureSlots[time_slot_of(125), Glenorchy,G1]= {0, 15}-error
-%       EligibleDepartureSlots[time_slot_of(135), Glenorchy,G1]= {0,15,30,45,60,75,90,105,120}    
-      
+
       
       
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Convert mins to Timeslot
-%
-% Function:  time_slot_of(int: minute)
-% ime_slot_of(0) = 1
-%
-% ime_slot_of(480) = 33
-% ime_slot_of(time_mins[a]) = a
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        
 
-% e.g., time_slot_of(0) = 1; time_slot_of(480) = 33  
-% Tip: time_slot_of(time_mins[a]) = a
+
 function int: time_slot_of(int: minute) =
     assert(
         minute in time_mins,
-        "The specified time must be a valid 15-minute time point.",
+        "",
         1+ minute div SLOT_LENGTH
     );
 
@@ -214,18 +178,6 @@ array[EVPot, EVGroup] of int: ev_demand =
 |        5,  8, 12   % Warrane
 |];
 
-%array[EVPot, EVGroup] of int: ev_demand =
-%[|
-%       A   B   C
-%        6,  4,  2   % Glenorchy
-%|       5,  3,  2   % West_Moonah
-%|       8,  6,   3   % New_Town
-%|       10, 20, 6   % North_Hobart
-%|       9,  15, 9   % South_Hobart
-%|       5,  3,  2   % Bellerive
-%|        2,  4, 6   % Warrane
-%|];
-
 
 % Base charging price for each charging station
 % Unit A$/10 kWh
@@ -256,8 +208,7 @@ function int: time_price_adjustment(TimeSlot: t) =
     endif;
 
 % Charging price at station s during time slot t
-% TimeSlot: 1..33
-% station_charging_price [1,B3]=36
+
 array[TimeSlot, ChargingStation] of int: station_charging_price =
     array2d(
         TimeSlot,
@@ -312,7 +263,7 @@ function int: capacity_availability_percent(TimeSlot: t) =
     endif;
 
 % Available capacity at station s during time slot t
-% design_capacity[33, S10] = 300
+
 array[TimeSlot, ChargingStation] of int: design_capacity =
     array2d(
         TimeSlot,
@@ -353,8 +304,7 @@ int: MAX_EV_DEMAND =
         ev_demand[pot, group]
     );
     
-% assigned EV at starting pot
-% TimeSlot: 1..33 not 0, 15, ..., 480
+
 array[
     EVPot,
     EVGroup,
@@ -378,10 +328,7 @@ array[
 % Revenue: R
 % 
 % Cost: C_w, C_d
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-% assigned EV at starting pot
-% TimeSlot: 1..33 not 0, 15, ..., 480
+
 array[
     EVGroup,
     TimeSlot,

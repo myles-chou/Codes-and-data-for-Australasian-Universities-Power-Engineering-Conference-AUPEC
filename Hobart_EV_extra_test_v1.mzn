@@ -74,6 +74,7 @@ int: SLOT_LENGTH  = 60;
 
 set of int: TimeSlot = 1..(TIME_HORIZON div SLOT_LENGTH)+1;
 
+
 array[TimeSlot] of int: time_mins =
     [(t-1) * SLOT_LENGTH | t in TimeSlot];
     
@@ -81,6 +82,8 @@ array[TimeSlot] of int: time_mins =
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Time set finding (no later than t)
 %
+% Function:  time_points_no_later_than
+% Array: TimePointsNoLaterThan
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
      
@@ -88,14 +91,9 @@ array[TimeSlot] of int: time_mins =
 function set of int: time_points_no_later_than(int: t) =
     {tau | tau in time_mins where tau <= t};
     
-% Optional: precompute the set for every time slot
 
 array[TimeSlot] of set of int: TimePointsNoLaterThan =
     [time_points_no_later_than(t) | t in time_mins]; 
-% TimeSlot = 1..33
-
-
-% Returns all time-slot indices no later than time slot t
 
 function set of int: time_points_no_later_than_depart(int: t, EVPot: pot, ChargingStation: station) =
     {tau | tau in time_mins where tau <= t-driving_time_mins[pot,station]};
@@ -118,12 +116,13 @@ array[
               charge in ChargingStation
         ]
     );
-
-      
+  
       
       
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Convert mins to Timeslot
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        
 
 function int: time_slot_of(int: minute) =
     assert(
@@ -178,8 +177,20 @@ array[EVPot, EVGroup] of int: ev_demand =
 |];
 
 
+% Base charging price for each charging station
+% Unit A$/10 kWh
+array[ChargingStation] of int: station_base_price =
+[
+    7, 6,          % G1, G2
+    7, 8,          % W1, W2
+    8, 8,          % N1, N2
+    8, 7, 7, 5,  % S1, S2, S3, S4
+    5, 5, 8, 8,  % S5, S6, S7, S8
+    8, 7,          % S9, S10
+    8, 6, 6       % B1, B2, B3
+];
 
-array[ChargingStation] of var 0..10: station_base_price;
+
 
 
 % Time-of-use adjustment in cents per kWh
@@ -195,7 +206,7 @@ function int: time_price_adjustment(TimeSlot: t) =
     endif;
 
 
-array[TimeSlot, ChargingStation] of var int: station_charging_price =
+array[TimeSlot, ChargingStation] of int: station_charging_price =
     array2d(
         TimeSlot,
         ChargingStation,
@@ -248,7 +259,8 @@ function int: capacity_availability_percent(TimeSlot: t) =
         100      % Evening availability
     endif;
 
-
+% Available capacity at station s during time slot t
+% design_capacity[33, S10] = 300
 array[TimeSlot, ChargingStation] of int: design_capacity =
     array2d(
         TimeSlot,
@@ -297,7 +309,7 @@ array[
     ChargingStation
 ] of var 0..MAX_EV_DEMAND: assigned_evs_origin; 
 
-% successful charging EV at charging station
+
 array[
     EVPot,
     EVGroup,
@@ -314,7 +326,6 @@ array[
 % 
 % Cost: C_w, C_d
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
 
 array[
     EVGroup,
@@ -569,9 +580,7 @@ constraint
         * group_charging[group, t, station]
     );                                      
 
-
-                                                       
-                                                                                                                                                                        
+                                                         
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Total waiting cost (The final result should be revised by /60mins)
 %
@@ -638,18 +647,7 @@ constraint
         * assigned_evs_origin[pot, group, t, station]
     ); 
     
-
-                                                                                                                    
-                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                            %%%%revenue constraint%%%%
-                                                                                                                                                                                                                                                                                                                                                      constraint
-    R >= 12343; 
-    
-% station price limitation
-constraint
-   forall(s1 in ChargingStation, s2 in ChargingStation)
-         (abs(station_base_price[s1] - station_base_price[s2])< 5);                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                     
                                                                                                                                                                       
 var float: c_wait;
 var float: c_drive;
@@ -657,13 +655,13 @@ var float: c_drive;
 constraint c_wait= C_w/60;
 constraint c_drive = C_d/60;                                                                                            
 %solve satisfy;
-% solve maximize R;
+%solve maximize R;
 solve minimize (C_d + C_w + 60*R);
 %solve minimize C_w;
 % minimize R;
 
 
-
+constraint R = 14745;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Post-processing data
@@ -718,8 +716,8 @@ constraint
             )
             * assigned_evs_origin[pot, group, t, s]
         )
-    ));                                     
-
+    ));  
+                                       
 
 array[
     TimeSlot
@@ -766,10 +764,4 @@ output [
     "Station waiting cost:\n",
     show([round(station_waiting[s])|s in ChargingStation]),
     "\n\n",   
-    
-    "Station price: \n",
-    show(station_base_price),
-    "\n\n",
-        
-    
     ]
